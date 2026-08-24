@@ -53,7 +53,7 @@ def main() -> None:
 
             state["messages"].append(HumanMessage(content=user_input))
             state = graph.invoke(state)
-            entities_touched.update(state["mentioned_entities"])
+            entities_touched.update(ref["name"] for ref in state["mentioned_entities"])
 
             ai_reply = state["messages"][-1].content
             print(f"agent> {ai_reply}\n")

@@ -16,9 +16,10 @@ def db_lookup(entity_name: str) -> str:
     """Look up all current known facts for a named entity (equipment or zone) in structured memory."""
     db = get_session()
     try:
-        entity = repository.get_or_create_entity(db, "equipment", entity_name)
+        entity = repository.find_entity_by_name(db, entity_name)
+        if entity is None:
+            return f"No entity named '{entity_name}' on record."
         facts = repository.get_current_facts_for_entity(db, entity.id)
-        db.rollback()  # get_or_create may have inserted a placeholder; don't persist a lookup miss
         if not facts:
             return f"No current facts on record for '{entity_name}'."
         lines = [f"- {f.attribute}: {f.value} (confidence {f.confidence}, observed {f.observed_at})" for f in facts]
@@ -46,8 +47,13 @@ def escalate_to_human(reason: str, entity_name: str | None = None) -> str:
     try:
         entity_id = None
         if entity_name:
-            entity = repository.get_or_create_entity(db, "equipment", entity_name)
-            entity_id = entity.id
+            entity = repository.find_entity_by_name(db, entity_name)
+            if entity is not None:
+                entity_id = entity.id
+            else:
+                # Unknown entity — keep the name in the reason text rather than
+                # silently dropping it (escalation tool never creates entities).
+                reason = f"[{entity_name}] {reason}"
         repository.log_escalation(db, reason=reason, session_id=None, entity_id=entity_id)
         db.commit()
         return f"Escalated to human operator: {reason}"

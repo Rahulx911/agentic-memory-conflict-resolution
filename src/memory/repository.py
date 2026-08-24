@@ -11,7 +11,7 @@ rows and either auto-resolves them by recency or leaves them for a human.
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
 from src.memory.models import Entity, Escalation, Fact, Resolution
@@ -29,8 +29,17 @@ def get_or_create_entity(db: DBSession, entity_type: str, name: str) -> Entity:
     return entity
 
 
-def list_entity_names(db: DBSession) -> list[str]:
-    return [row[0] for row in db.execute(select(Entity.name)).all()]
+def list_entities(db: DBSession) -> list[Entity]:
+    return list(db.execute(select(Entity)).scalars())
+
+
+def find_entity_by_name(db: DBSession, name: str) -> Entity | None:
+    """Case-insensitive lookup by name only (entities are unique per (type, name), so a
+    name collision across types is possible but not handled here — first match wins).
+    Pure read: never creates an entity, unlike get_or_create_entity."""
+    return db.execute(
+        select(Entity).where(func.lower(Entity.name) == name.lower())
+    ).scalars().first()
 
 
 def get_current_fact(db: DBSession, entity_id: uuid.UUID, attribute: str) -> Fact | None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from src.agent.state import AgentState
@@ -36,10 +36,14 @@ def perceive(state: AgentState) -> dict:
     text = _last_human_text(state).lower()
     db = get_session()
     try:
-        names = repository.list_entity_names(db)
+        entities = repository.list_entities(db)
+        mentioned = [
+            {"id": e.id, "entity_type": e.entity_type, "name": e.name}
+            for e in entities
+            if e.name.lower() in text
+        ]
     finally:
         db.close()
-    mentioned = [n for n in names if n.lower() in text]
     return {"mentioned_entities": mentioned}
 
 
@@ -47,19 +51,17 @@ def retrieve_memory(state: AgentState) -> dict:
     retrieved_facts = []
     db = get_session()
     try:
-        for name in state["mentioned_entities"]:
-            entity = repository.get_or_create_entity(db, "equipment", name)
-            for f in repository.get_current_facts_for_entity(db, entity.id):
+        for ref in state["mentioned_entities"]:
+            for f in repository.get_current_facts_for_entity(db, ref["id"]):
                 retrieved_facts.append(
                     {
-                        "entity_name": name,
+                        "entity_name": ref["name"],
                         "attribute": f.attribute,
                         "value": f.value,
                         "confidence": f.confidence,
                         "observed_at": f.observed_at.isoformat(),
                     }
                 )
-        db.rollback()  # get_or_create above may have inserted placeholders for unseen names
     finally:
         db.close()
 
@@ -124,12 +126,18 @@ class ExtractionResult(BaseModel):
 _extractor = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(ExtractionResult)
 
 
+def _current_turn_ai_text(state: AgentState) -> str:
+    messages = state["messages"]
+    last_human_idx = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
+    # Everything after the latest human turn, including intermediate tool-calling
+    # AI messages, not just the final reply — a fact can be stated before the last tool call.
+    ai_texts = [str(m.content) for m in messages[last_human_idx + 1 :] if isinstance(m, AIMessage) and m.content]
+    return " ".join(ai_texts)
+
+
 def extract_memory(state: AgentState) -> dict:
     human = _last_human_text(state)
-    ai_texts = [
-        str(m.content) for m in state["messages"][-3:] if not isinstance(m, HumanMessage) and m.content
-    ]
-    exchange = f"User: {human}\nAgent: {' '.join(ai_texts)}"
+    exchange = f"User: {human}\nAgent: {_current_turn_ai_text(state)}"
 
     result: ExtractionResult = _extractor.invoke(
         [
