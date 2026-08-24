@@ -1,7 +1,6 @@
 # Agentic System with Long-Term Memory & Conflict Resolution
 
-**Target audience:** Reusable agentic-AI infrastructure — applicable to both banking/compliance-focused evaluation (audit trail, explainability of memory writes) and product-focused evaluation (retrieval precision, conflict-resolution accuracy as measurable metrics).
-
+**Target audience:** Reusable agentic-AI infrastructure 
 ## Problem Statement
 
 Most agent demos are stateless — every session starts from zero. This project builds an agent (reference implementation: a warehouse-operations assistant) that maintains **persistent memory** — facts about equipment, past incidents, and user preferences — across sessions, updates its beliefs as new information arrives, and explicitly resolves contradictions instead of silently overwriting or ignoring them (e.g. "the fault log said sensor 3 was replaced, but a new log says it's still faulty — which is current?").
