@@ -1,0 +1,24 @@
+[project]
+name = "agentic-memory-conflict-resolution"
+version = "0.1.0"
+description = "Agentic system with long-term memory and conflict resolution across sessions"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2",
+    "langchain-anthropic",
+    "anthropic",
+    "psycopg[binary]",
+    "sqlalchemy>=2",
+    "qdrant-client",
+    "pydantic>=2",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
