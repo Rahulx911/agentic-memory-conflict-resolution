@@ -65,7 +65,7 @@ class Entity(Base):
     name: Mapped[str] = mapped_column(String(256), nullable=False)  # e.g. "sensor_3", "zone_b"
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    facts: Mapped[list["Fact"]] = relationship(back_populates="entity")
+    facts: Mapped[list[Fact]] = relationship(back_populates="entity")
 
 
 class Fact(Base):
@@ -95,4 +95,17 @@ class Fact(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    entity: Mapped["Entity"] = relationship(back_populates="facts")
+    entity: Mapped[Entity] = relationship(back_populates="facts")
+
+
+class Escalation(Base):
+    """A human-escalation request raised by the agent's escalate_to_human tool."""
+
+    __tablename__ = "escalations"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    session_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sessions.id"), nullable=True)
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("entities.id"), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")  # open | resolved
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

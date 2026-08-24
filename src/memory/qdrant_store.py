@@ -12,7 +12,7 @@ from datetime import datetime
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
-EMBEDDING_DIM = 1536  # matches text-embedding-3-small / voyage-3-lite class models
+EMBEDDING_DIM = 512  # voyage-3-lite output size; keep in sync with embeddings.EMBEDDING_DIM
 
 
 def _client() -> QdrantClient:

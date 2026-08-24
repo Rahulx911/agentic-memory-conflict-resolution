@@ -10,6 +10,7 @@ dependencies = [
     "psycopg[binary]",
     "sqlalchemy>=2",
     "qdrant-client",
+    "voyageai",
     "pydantic>=2",
     "python-dotenv",
 ]

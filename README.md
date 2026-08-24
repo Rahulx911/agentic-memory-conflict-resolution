@@ -25,10 +25,10 @@ Before any new fact is written, it is checked against existing structured memory
   - [ ] Structured memory schema: entities, facts, confidence/timestamp per fact
   - [ ] Episodic memory schema: conversation summaries + embeddings
   - [ ] Postgres (structured facts) + Qdrant (episodic/semantic) set up
-- [ ] **Phase 2 — Agent Core (Week 2)**
-  - [ ] LangGraph state machine: perceive → retrieve → reason/act → respond → write
-  - [ ] Tool calls: DB lookups, incident search, human escalation
-  - [ ] Memory-extraction node (LLM extracts candidate new facts each turn)
+- [x] **Phase 2 — Agent Core (Week 2)**
+  - [x] LangGraph state machine: perceive → retrieve → reason/act → respond → write
+  - [x] Tool calls: DB lookups, incident search, human escalation
+  - [x] Memory-extraction node (LLM extracts candidate new facts each turn)
 - [ ] **Phase 3 — Conflict Resolution (Week 3, the differentiating part)**
   - [ ] Conflict check against existing structured memory before write
   - [ ] Resolution policy: auto-resolve low-stakes by recency, flag high-stakes for confirmation
@@ -73,6 +73,15 @@ docker/        Postgres + Qdrant local dev stack
 docs/          architecture notes
 ```
 
+## Running it
+
+```
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+docker compose -f docker/docker-compose.yml up -d
+cp .env.example .env   # fill in ANTHROPIC_API_KEY and VOYAGE_API_KEY
+.venv/bin/python -m src.agent.run_cli
+```
+
 ## Status
 
-Repo scaffolded — starting Phase 1 (Memory Schema).
+Phase 1 (memory schema) and Phase 2 (agent core) done. Phase 3 (conflict resolution) is next.
