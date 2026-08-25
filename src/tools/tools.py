@@ -2,8 +2,11 @@
 incident search over episodic memory, and human escalation.
 """
 
+import uuid
+from typing import Annotated
 
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 
 from src.memory import repository
 from src.memory.db import get_session
@@ -40,7 +43,11 @@ def incident_search(query: str) -> str:
 
 
 @tool
-def escalate_to_human(reason: str, entity_name: str | None = None) -> str:
+def escalate_to_human(
+    reason: str,
+    entity_name: str | None = None,
+    session_id: Annotated[uuid.UUID | None, InjectedState("session_id")] = None,
+) -> str:
     """Escalate an issue to a human operator when the agent cannot safely resolve it itself
     (e.g. a high-stakes fact conflict, or a request outside the agent's authority)."""
     db = get_session()
@@ -54,7 +61,7 @@ def escalate_to_human(reason: str, entity_name: str | None = None) -> str:
                 # Unknown entity — keep the name in the reason text rather than
                 # silently dropping it (escalation tool never creates entities).
                 reason = f"[{entity_name}] {reason}"
-        repository.log_escalation(db, reason=reason, session_id=None, entity_id=entity_id)
+        repository.log_escalation(db, reason=reason, session_id=session_id, entity_id=entity_id)
         db.commit()
         return f"Escalated to human operator: {reason}"
     finally:

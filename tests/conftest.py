@@ -13,15 +13,22 @@ def _init_schema():
     init_db()
 
 
+def _truncate() -> None:
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE facts, escalations, entities, sessions CASCADE"))
+
+
 @pytest.fixture
 def db():
+    # Truncate before, not just after: tests write real rows against the dev
+    # Postgres, which is also used by manual runs of the CLIs and ad-hoc
+    # scripts. Only cleaning up after each test leaves the *first* test in a
+    # run at the mercy of whatever state that out-of-band usage left behind.
+    _truncate()
     session = SessionLocal()
     try:
         yield session
     finally:
         session.rollback()
         session.close()
-        # Tests write real rows against the dev Postgres; wipe between tests
-        # so each test starts from a clean slate regardless of commit/rollback.
-        with engine.begin() as conn:
-            conn.execute(text("TRUNCATE facts, escalations, entities, sessions CASCADE"))
+        _truncate()
