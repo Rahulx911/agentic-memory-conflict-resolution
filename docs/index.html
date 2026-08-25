@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Memory &amp; Conflict Resolution</title>
+<meta name="description" content="An agent with persistent long-term memory that never silently overwrites a contradiction — structured facts with provenance, a legible conflict-resolution policy, and human-in-the-loop review.">
+<style>
+  :root {
+    --bg: #0b0c0f;
+    --bg-elevated: #131519;
+    --bg-card: #16181d;
+    --border: #262a31;
+    --text: #eef0f3;
+    --text-dim: #9aa1ab;
+    --text-faint: #676e79;
+    --accent: #f0783c;
+    --accent-dim: #7a3d20;
+    --green: #4fae6d;
+    --code-bg: #0e1013;
+    --code-text: #8fd19e;
+    --max-width: 920px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  .wrap {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  header.hero {
+    padding: 88px 0 56px;
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(ellipse 700px 320px at 15% -10%, rgba(240,120,60,0.14), transparent),
+      var(--bg);
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(240,120,60,0.1);
+    border: 1px solid var(--accent-dim);
+    padding: 6px 12px;
+    border-radius: 999px;
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-size: clamp(32px, 5vw, 46px);
+    line-height: 1.15;
+    margin: 0 0 18px;
+    letter-spacing: -0.02em;
+  }
+
+  .lede {
+    font-size: 19px;
+    color: var(--text-dim);
+    max-width: 700px;
+    margin: 0 0 32px;
+  }
+
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    border: 1px solid transparent;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #1a0e07;
+  }
+  .btn-primary:hover { background: #ff8a4d; text-decoration: none; }
+
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--text-faint); text-decoration: none; }
+
+  .badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
+
+  .badge {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 5px 10px;
+    border-radius: 6px;
+  }
+  .badge .dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    margin-right: 6px;
+  }
+
+  section {
+    padding: 64px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-size: 27px;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+  }
+
+  .section-intro {
+    color: var(--text-dim);
+    max-width: 680px;
+    margin: 0 0 36px;
+    font-size: 16px;
+  }
+
+  /* Demo section */
+  .demo-frame {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6);
+  }
+  .demo-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .demo-caption {
+    margin-top: 16px;
+    font-size: 14.5px;
+    color: var(--text-faint);
+  }
+
+  /* Architecture flow */
+  .flow {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0;
+    margin: 8px 0 36px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .flow-step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .flow-step .sub {
+    display: block;
+    font-weight: 400;
+    color: var(--text-faint);
+    font-size: 12.5px;
+    margin-top: 3px;
+  }
+  .flow-arrow {
+    color: var(--text-faint);
+    padding: 0 10px;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .tier-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 8px;
+  }
+  @media (max-width: 640px) {
+    .tier-grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+  }
+  .card h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+  .card p {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14.5px;
+  }
+
+  /* Policy explainer */
+  .policy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 24px;
+  }
+  @media (max-width: 640px) {
+    .policy-grid { grid-template-columns: 1fr; }
+  }
+  .policy-card {
+    border-radius: 12px;
+    padding: 22px;
+    border: 1px solid var(--border);
+  }
+  .policy-card.low {
+    background: rgba(79,174,109,0.06);
+    border-color: rgba(79,174,109,0.28);
+  }
+  .policy-card.high {
+    background: rgba(240,120,60,0.06);
+    border-color: var(--accent-dim);
+  }
+  .policy-tag {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 5px;
+    margin-bottom: 12px;
+  }
+  .policy-card.low .policy-tag { background: rgba(79,174,109,0.18); color: #7bd99a; }
+  .policy-card.high .policy-tag { background: rgba(240,120,60,0.18); color: #ff9d66; }
+  .policy-card p { margin: 0; color: var(--text-dim); font-size: 14.5px; }
+  .policy-card code {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  /* Metrics table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--text-faint);
+    font-weight: 600;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  td.metric-name { font-weight: 600; white-space: nowrap; }
+  td.metric-val { color: var(--text-dim); }
+  .repro {
+    margin-top: 18px;
+    font-size: 13.5px;
+    color: var(--text-faint);
+  }
+  .repro code {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 2px 8px;
+    border-radius: 5px;
+  }
+
+  /* Build plan */
+  .phase-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .phase {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .phase .check {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(79,174,109,0.18);
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .phase .label { font-weight: 600; font-size: 15px; }
+  .phase .desc { color: var(--text-dim); font-size: 14px; margin-top: 3px; }
+
+  /* Footer */
+  footer {
+    padding: 48px 0 72px;
+  }
+  footer .wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  footer .stack {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  footer p {
+    color: var(--text-faint);
+    font-size: 13.5px;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">● Phases 1–4 complete</span>
+    <h1>An agent that never silently overwrites a contradiction</h1>
+    <p class="lede">
+      A warehouse-operations assistant with persistent long-term memory across sessions.
+      The engineering problem isn't memory storage — it's <strong>conflict resolution with
+      provenance</strong>: every fact carries a confidence and timestamp, every overwrite is
+      logged with its source session, and high-stakes contradictions are surfaced to a human
+      instead of auto-resolved.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/Rahulx911/agentic-memory-conflict-resolution">View on GitHub →</a>
+      <a class="btn btn-secondary" href="#demo">Watch the demo</a>
+    </div>
+    <div class="badges">
+      <span class="badge"><span class="dot"></span>LangGraph agent loop</span>
+      <span class="badge"><span class="dot"></span>Postgres + Qdrant memory</span>
+      <span class="badge"><span class="dot"></span>Claude · Voyage embeddings</span>
+      <span class="badge"><span class="dot"></span>48 tests passing</span>
+    </div>
+  </div>
+</header>
+
+<section id="demo">
+  <div class="wrap">
+    <h2>See it in action</h2>
+    <p class="section-intro">
+      An unverified incident is reported, escalated for lack of prior record, then a
+      conflicting "it's fixed now" follow-up gets flagged — <code>status</code> is a
+      safety-relevant attribute, so it's staged for human confirmation instead of silently
+      overwritten. Accepting it from the sidebar resolves the conflict and updates the record.
+    </p>
+    <div class="demo-frame">
+      <img src="assets/demo.gif" alt="Demo of the Warehouse Ops Assistant: reporting a fault, the agent escalating for verification, a conflicting update being flagged, and a human resolving it from the sidebar.">
+    </div>
+    <p class="demo-caption">Live recording against the real stack — Postgres, Qdrant, and Claude — no mocks.</p>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="wrap">
+    <h2>Architecture</h2>
+    <p class="section-intro">Two-tier long-term memory, wired through a LangGraph state machine.</p>
+
+    <div class="tier-grid">
+      <div class="card">
+        <h3>Structured memory · Postgres</h3>
+        <p>Entities (equipment, zones) and an append-only fact ledger — status, last-serviced,
+        confidence, timestamp — with a full write/overwrite audit trail for provenance.</p>
+      </div>
+      <div class="card">
+        <h3>Episodic memory · Qdrant</h3>
+        <p>Per-session conversation summaries, embedded for semantic recall — "has anything
+        like this happened before" across sessions, not just exact fact lookups.</p>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">perceive<span class="sub">detect mentioned entities</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">retrieve<span class="sub">facts + related sessions</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">reason / act<span class="sub">tool calls ⇄ loop</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">respond</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">extract &amp; write<span class="sub">conflict check on every write</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="policy">
+  <div class="wrap">
+    <h2>The conflict policy is legible by design</h2>
+    <p class="section-intro">
+      Simple and auditable rather than learned — anyone can read
+      <code class="mono">classify_stakes()</code> and know exactly why a contradiction was or
+      wasn't auto-resolved.
+    </p>
+    <div class="policy-grid">
+      <div class="policy-card low">
+        <span class="policy-tag">Low stakes</span>
+        <p>Auto-resolved by <code>observed_at</code> recency, not insertion order — a
+        backdated correction can't clobber a fact observed more recently. Exact ties fall
+        back to a human, since recency alone can't decide.</p>
+      </div>
+      <div class="policy-card high">
+        <span class="policy-tag">High stakes</span>
+        <p>Safety-relevant attributes (equipment/zone <code>status</code>) and low-confidence
+        observations never auto-resolve. Staged as <code>PENDING_CONFIRMATION</code> and
+        logged as an open escalation for a human to accept or reject.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="metrics">
+  <div class="wrap">
+    <h2>Phase 4 — evaluation baseline</h2>
+    <p class="section-intro">Measured against the real stack, not mocks.</p>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th>Baseline</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric-name">Memory retrieval precision</td>
+          <td class="metric-val">100% precision / 100% recall on a labeled entity-mention set</td>
+        </tr>
+        <tr>
+          <td class="metric-name">Conflict-resolution accuracy</td>
+          <td class="metric-val">100% (10/10) against a labeled contradiction set</td>
+        </tr>
+        <tr>
+          <td class="metric-name">Cross-session recall</td>
+          <td class="metric-val">100% structured; live semantic recall verified across 5 simulated sessions</td>
+        </tr>
+        <tr>
+          <td class="metric-name">p50 / p95 latency</td>
+          <td class="metric-val">≈10s / ≈52s end-to-end perceive→respond (real Claude + Voyage calls)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="repro">Reproduce: <code>python -m src.eval.run_eval</code></p>
+  </div>
+</section>
+
+<section id="phases">
+  <div class="wrap">
+    <h2>Build plan</h2>
+    <div class="phase-list">
+      <div class="phase">
+        <div class="check">✓</div>
+        <div>
+          <div class="label">Phase 1 — Memory schema</div>
+          <div class="desc">Structured + episodic memory schema, Postgres and Qdrant set up.</div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="check">✓</div>
+        <div>
+          <div class="label">Phase 2 — Agent core</div>
+          <div class="desc">LangGraph state machine, tool calls, memory-extraction node.</div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="check">✓</div>
+        <div>
+          <div class="label">Phase 3 — Conflict resolution</div>
+          <div class="desc">Conflict check before every write, auto-resolve/escalate policy, provenance logging, contradiction test suite.</div>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="check">✓</div>
+        <div>
+          <div class="label">Phase 4 — Evaluation &amp; polish</div>
+          <div class="desc">Multi-session recall scenarios, the four tracked metrics, and a chat UI with a memory-state transparency sidebar.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Built with LangGraph, Postgres, Qdrant, Claude, and Voyage AI.</p>
+    <div class="stack">
+      <a class="btn btn-secondary" href="https://github.com/Rahulx911/agentic-memory-conflict-resolution">Repository</a>
+      <a class="btn btn-secondary" href="https://github.com/Rahulx911/agentic-memory-conflict-resolution#readme">README</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
