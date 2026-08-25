@@ -20,10 +20,10 @@ Before any new fact is written, it is checked against existing structured memory
 
 ## Build Plan
 
-- [ ] **Phase 1 — Memory Schema (Week 1)**
-  - [ ] Structured memory schema: entities, facts, confidence/timestamp per fact
-  - [ ] Episodic memory schema: conversation summaries + embeddings
-  - [ ] Postgres (structured facts) + Qdrant (episodic/semantic) set up
+- [x] **Phase 1 — Memory Schema (Week 1)**
+  - [x] Structured memory schema: entities, facts, confidence/timestamp per fact
+  - [x] Episodic memory schema: conversation summaries + embeddings
+  - [x] Postgres (structured facts) + Qdrant (episodic/semantic) set up
 - [x] **Phase 2 — Agent Core (Week 2)**
   - [x] LangGraph state machine: perceive → retrieve → reason/act → respond → write
   - [x] Tool calls: DB lookups, incident search, human escalation
@@ -33,19 +33,21 @@ Before any new fact is written, it is checked against existing structured memory
   - [x] Resolution policy: auto-resolve low-stakes by recency, flag high-stakes for confirmation
   - [x] Provenance logging on every memory write/overwrite (session, source)
   - [x] Test suite of deliberately contradictory input sequences across sessions
-- [ ] **Phase 4 — Evaluation & Polish (Week 4)**
-  - [ ] Multi-session recall test scenarios (session 1 fact recalled correctly in session 5)
-  - [ ] Metrics: memory precision (retrieval correctness), conflict-resolution accuracy vs. labeled contradiction set, latency
-  - [ ] Simple chat UI showing memory state transparently (what the agent remembers, and why)
+- [x] **Phase 4 — Evaluation & Polish (Week 4)**
+  - [x] Multi-session recall test scenarios (session 1 fact recalled correctly in session 5)
+  - [x] Metrics: memory precision (retrieval correctness), conflict-resolution accuracy vs. labeled contradiction set, latency
+  - [x] Simple chat UI showing memory state transparently (what the agent remembers, and why)
 
 ## Metrics Tracked
 
-| Metric | Definition | Target |
+| Metric | Definition | Baseline (Phase 4) |
 |---|---|---|
-| Memory retrieval precision | % of retrieved facts relevant to query | TBD after Phase 4 baseline |
-| Conflict-resolution accuracy | % correct resolutions vs. labeled contradiction set | TBD after Phase 4 baseline |
-| Cross-session recall | % of session-1 facts correctly recalled by session 5+ | TBD after Phase 4 baseline |
-| p50/p95 response latency | end-to-end perceive→respond | TBD |
+| Memory retrieval precision | % of retrieved facts relevant to query | 100% precision / 100% recall on the labeled mention set (`src/eval/mention_set.py`) |
+| Conflict-resolution accuracy | % correct resolutions vs. labeled contradiction set | 100% (10/10) on `src/eval/contradiction_set.py` |
+| Cross-session recall | % of session-1 facts correctly recalled by session 5+ | 100% structured; live semantic recall verified in `tests/scenarios/test_cross_session_recall.py` |
+| p50/p95 response latency | end-to-end perceive→respond | p50 ≈ 10s, p95 ≈ 52s (n=3, real Claude+Voyage calls; upper end reflects Voyage free-tier rate-limit backoff, not steady-state latency) |
+
+Reproduce with `.venv/bin/python -m src.eval.run_eval` (hits Postgres, Qdrant, Claude, and Voyage — takes a couple of minutes, paced to stay under Voyage's free-tier rate limit).
 
 ## Tech Stack
 
@@ -81,9 +83,16 @@ cp .env.example .env   # fill in ANTHROPIC_API_KEY and VOYAGE_API_KEY
 .venv/bin/python -m src.agent.run_cli
 ```
 
+Chat UI with a memory-state transparency sidebar (what the agent retrieved this turn, and the live conflict-resolution queue, with accept/reject buttons):
+
+```
+.venv/bin/pip install -e ".[ui]"
+.venv/bin/streamlit run src/ui/app.py
+```
+
 ## Status
 
-Phase 1 (memory schema), Phase 2 (agent core), and Phase 3 (conflict resolution) done. Phase 4 (evaluation & polish) is next.
+All four phases done: memory schema (1), agent core (2), conflict resolution (3), and evaluation & polish (4).
 
 Conflict policy (`src/conflict/policy.py`): safety-relevant attributes (e.g. equipment/zone `status`) and low-confidence observations never auto-resolve — they're staged as `PENDING_CONFIRMATION` and logged as an open `Escalation`. Everything else auto-resolves by recency (`observed_at`, not insertion order — a backdated correction can't clobber a fact observed more recently). Ties fall back to a human. Review the queue with:
 

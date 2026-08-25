@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -32,6 +34,14 @@ def _last_human_text(state: AgentState) -> str:
     return ""
 
 
+def _name_mentioned(name: str, text: str) -> bool:
+    # Word-boundary match, not plain substring: entity names are underscore-joined
+    # tokens (e.g. "bay_1", "bay_12"), and underscore counts as a word character in
+    # regex, so \b correctly rejects "bay_1" matching inside "bay_12" while still
+    # matching "bay_1" at a real token boundary (space, punctuation, string edge).
+    return re.search(rf"\b{re.escape(name.lower())}\b", text) is not None
+
+
 def perceive(state: AgentState) -> dict:
     text = _last_human_text(state).lower()
     db = get_session()
@@ -40,7 +50,7 @@ def perceive(state: AgentState) -> dict:
         mentioned = [
             {"id": e.id, "entity_type": e.entity_type, "name": e.name}
             for e in entities
-            if e.name.lower() in text
+            if _name_mentioned(e.name, text)
         ]
     finally:
         db.close()

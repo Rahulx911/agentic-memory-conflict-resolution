@@ -20,6 +20,9 @@ dev = [
     "pytest",
     "ruff",
 ]
+ui = [
+    "streamlit",
+]
 
 [tool.ruff]
 line-length = 100
