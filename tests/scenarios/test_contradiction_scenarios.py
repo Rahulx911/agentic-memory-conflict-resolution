@@ -196,6 +196,103 @@ def test_human_accepts_pending_conflict_promotes_it_to_current(db):
     assert list_pending_conflicts(db) == []
 
 
+def test_accepting_two_pending_conflicts_on_same_attribute_never_leaves_two_current(db):
+    """Two independent contradictory reports can both be staged against the
+    same original current fact before either is reviewed. Accepting both, in
+    order, must never leave two rows is_current=True for the same
+    (entity, attribute) — the second accept has to supersede whatever is
+    *actually* current at that point (the first accepted candidate), not the
+    stale fact it was originally staged against."""
+    session_1 = create_session(db, user_id="ops_1")
+    db.commit()
+
+    write_fact(
+        db,
+        entity_type="equipment",
+        entity_name="sensor_3",
+        attribute="status",
+        value={"value": "faulty"},
+        confidence=0.9,
+        session_id=session_1.id,
+        observed_at=T0,
+    )
+    db.commit()
+
+    candidate_1 = write_fact(
+        db,
+        entity_type="equipment",
+        entity_name="sensor_3",
+        attribute="status",
+        value={"value": "replaced"},
+        confidence=0.9,
+        session_id=session_1.id,
+        observed_at=T1,
+    )
+    db.commit()
+    candidate_2 = write_fact(
+        db,
+        entity_type="equipment",
+        entity_name="sensor_3",
+        attribute="status",
+        value={"value": "under_repair"},
+        confidence=0.9,
+        session_id=session_1.id,
+        observed_at=T1,
+    )
+    db.commit()
+
+    confirm_conflict(db, candidate_1.id, accept=True)
+    db.commit()
+    confirm_conflict(db, candidate_2.id, accept=True)
+    db.commit()
+
+    entity = get_or_create_entity(db, "equipment", "sensor_3")
+    db.commit()
+
+    current = get_current_fact(db, entity.id, "status")
+    assert current.id == candidate_2.id
+    assert current.value == {"value": "under_repair"}
+
+    db.expire_all()
+    assert candidate_1.is_current is False
+    assert list_pending_conflicts(db) == []
+
+
+def test_confirming_a_conflict_closes_its_linked_escalation(db):
+    session_1 = create_session(db, user_id="ops_1")
+    db.commit()
+
+    write_fact(
+        db,
+        entity_type="equipment",
+        entity_name="sensor_3",
+        attribute="status",
+        value={"value": "faulty"},
+        confidence=0.9,
+        session_id=session_1.id,
+        observed_at=T0,
+    )
+    db.commit()
+    candidate = write_fact(
+        db,
+        entity_type="equipment",
+        entity_name="sensor_3",
+        attribute="status",
+        value={"value": "replaced"},
+        confidence=0.9,
+        session_id=session_1.id,
+        observed_at=T1,
+    )
+    db.commit()
+
+    assert len(list_open_escalations(db)) == 1
+
+    confirm_conflict(db, candidate.id, accept=True)
+    db.commit()
+
+    assert list_open_escalations(db) == []
+
+
 def test_human_rejects_pending_conflict_keeps_prior_current(db):
     session_1 = create_session(db, user_id="ops_1")
     db.commit()

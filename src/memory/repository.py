@@ -105,6 +105,15 @@ def write_fact(
         current_observed_at=current.observed_at,
     )
 
+    # The partial unique index on (entity_id, attribute) WHERE is_current is
+    # not deferrable (Postgres can't defer a partial unique index), so the
+    # old row must be flipped off — and flushed — before the new row is ever
+    # inserted with is_current=True, or the two would transiently coexist
+    # within the same flush and violate the constraint.
+    if decision.new_is_current:
+        current.is_current = False
+        db.flush()
+
     fact = Fact(
         entity_id=entity.id,
         attribute=attribute,
@@ -120,15 +129,13 @@ def write_fact(
     db.add(fact)
     db.flush()
 
-    if decision.new_is_current:
-        current.is_current = False
-
     if not decision.auto_resolved:
         log_escalation(
             db,
             reason=f"conflict on {entity_type}:{entity_name}.{attribute} — {decision.reason}",
             session_id=session_id,
             entity_id=entity.id,
+            fact_id=fact.id,
         )
 
     return fact
@@ -136,8 +143,12 @@ def write_fact(
 
 def confirm_conflict(db: DBSession, fact_id: uuid.UUID, *, accept: bool, reason: str | None = None) -> Fact:
     """Human resolution of a PENDING_CONFIRMATION fact. accept=True promotes the
-    candidate to current (superseding the prior fact); accept=False keeps the
-    prior fact current and just closes out the candidate as rejected."""
+    candidate to current (superseding whatever is *currently* current for that
+    entity/attribute — not necessarily candidate.supersedes_fact_id, since another
+    pending conflict on the same attribute may have already been resolved in the
+    meantime); accept=False keeps the current fact and just closes out the
+    candidate as rejected. Either way, any escalation raised for this specific
+    fact is closed."""
     candidate = db.get(Fact, fact_id)
     if candidate is None or candidate.resolution != Resolution.PENDING_CONFIRMATION:
         raise ValueError(f"fact {fact_id} is not a pending conflict")
@@ -150,13 +161,21 @@ def confirm_conflict(db: DBSession, fact_id: uuid.UUID, *, accept: bool, reason:
     )
 
     if accept:
+        # Flip the current row off (and flush) before flipping the candidate
+        # on — same non-deferrable-partial-index reasoning as in write_fact.
+        current = get_current_fact(db, candidate.entity_id, candidate.attribute)
+        if current is not None and current.id != candidate.id:
+            current.is_current = False
+            db.flush()
         candidate.is_current = True
-        if candidate.supersedes_fact_id:
-            prior = db.get(Fact, candidate.supersedes_fact_id)
-            if prior is not None:
-                prior.is_current = False
 
     db.flush()
+
+    for escalation in db.execute(
+        select(Escalation).where(Escalation.fact_id == candidate.id, Escalation.status == "open")
+    ).scalars():
+        escalation.status = "resolved"
+
     return candidate
 
 
@@ -188,8 +207,9 @@ def log_escalation(
     reason: str,
     session_id: uuid.UUID | None,
     entity_id: uuid.UUID | None,
+    fact_id: uuid.UUID | None = None,
 ) -> Escalation:
-    escalation = Escalation(reason=reason, session_id=session_id, entity_id=entity_id)
+    escalation = Escalation(reason=reason, session_id=session_id, entity_id=entity_id, fact_id=fact_id)
     db.add(escalation)
     db.flush()
     return escalation

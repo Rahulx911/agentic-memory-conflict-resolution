@@ -18,10 +18,12 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -77,6 +79,20 @@ class Fact(Base):
     """
 
     __tablename__ = "facts"
+    __table_args__ = (
+        # Application logic is responsible for only ever having one is_current
+        # row per (entity, attribute), but a concurrent write or a resolver
+        # bug could violate that silently — this makes it a hard DB
+        # constraint instead, since "never silently overwrite" is the whole
+        # point of this schema.
+        Index(
+            "uq_facts_current_per_entity_attribute",
+            "entity_id",
+            "attribute",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     entity_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("entities.id"), nullable=False)
@@ -106,6 +122,7 @@ class Escalation(Base):
     id: Mapped[uuid.UUID] = _uuid_pk()
     session_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sessions.id"), nullable=True)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("entities.id"), nullable=True)
+    fact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("facts.id"), nullable=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")  # open | resolved
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

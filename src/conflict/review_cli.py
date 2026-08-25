@@ -22,10 +22,12 @@ def _describe(db, fact: Fact) -> str:
     label = f"{entity.entity_type}:{entity.name}" if entity else str(fact.entity_id)
     lines = [f"[{fact.id}] {label}.{fact.attribute}"]
     lines.append(f"    new observation:  {fact.value} (confidence {fact.confidence}, observed {fact.observed_at})")
-    if fact.supersedes_fact_id:
-        prior = db.get(Fact, fact.supersedes_fact_id)
-        if prior is not None:
-            lines.append(f"    current fact:     {prior.value} (confidence {prior.confidence}, observed {prior.observed_at})")
+    # Looked up fresh (not via supersedes_fact_id) — an earlier item in this
+    # same review pass may already have changed what's current for this
+    # attribute.
+    current = repository.get_current_fact(db, fact.entity_id, fact.attribute)
+    if current is not None:
+        lines.append(f"    current fact:     {current.value} (confidence {current.confidence}, observed {current.observed_at})")
     lines.append(f"    why flagged:      {fact.resolution_reason}")
     return "\n".join(lines)
 
