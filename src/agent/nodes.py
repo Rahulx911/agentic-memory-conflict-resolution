@@ -94,7 +94,7 @@ def _format_context(state: AgentState) -> str:
     return "\n".join(lines)
 
 
-_llm = ChatAnthropic(model=MODEL, temperature=0)
+_llm = ChatAnthropic(model=MODEL)
 _llm_with_tools = _llm.bind_tools(AGENT_TOOLS)
 
 
@@ -123,7 +123,7 @@ class ExtractionResult(BaseModel):
     facts: list[ExtractedFact] = Field(default_factory=list)
 
 
-_extractor = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(ExtractionResult)
+_extractor = ChatAnthropic(model=MODEL).with_structured_output(ExtractionResult)
 
 
 def _current_turn_ai_text(state: AgentState) -> str:
