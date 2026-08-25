@@ -34,6 +34,21 @@ def _last_human_text(state: AgentState) -> str:
     return ""
 
 
+def ai_text(message: AIMessage) -> str:
+    """ChatAnthropic's content is either a plain string, or (whenever thinking/tool
+    use is involved) a list of typed content blocks (text/thinking/tool_use) — only
+    the text blocks are the model's actual reply. Anything that reads an AIMessage's
+    content as prose (extraction, display) needs this, not raw `.content`."""
+    content = message.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
+
+
 def _name_mentioned(name: str, text: str) -> bool:
     # Word-boundary match, not plain substring: entity names are underscore-joined
     # tokens (e.g. "bay_1", "bay_12"), and underscore counts as a word character in
@@ -141,8 +156,8 @@ def _current_turn_ai_text(state: AgentState) -> str:
     last_human_idx = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
     # Everything after the latest human turn, including intermediate tool-calling
     # AI messages, not just the final reply — a fact can be stated before the last tool call.
-    ai_texts = [str(m.content) for m in messages[last_human_idx + 1 :] if isinstance(m, AIMessage) and m.content]
-    return " ".join(ai_texts)
+    ai_texts = [ai_text(m) for m in messages[last_human_idx + 1 :] if isinstance(m, AIMessage)]
+    return " ".join(t for t in ai_texts if t)
 
 
 def extract_memory(state: AgentState) -> dict:

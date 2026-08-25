@@ -28,6 +28,7 @@ import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agent.graph import build_graph
+from src.agent.nodes import ai_text
 from src.memory import repository
 from src.memory.db import get_session, init_db
 from src.memory.episodic import write_episode
@@ -190,20 +191,6 @@ with st.sidebar:
         st.rerun()
 
 
-def _ai_text(message: AIMessage) -> str:
-    # ChatAnthropic's content is either a plain string, or (whenever thinking/tool
-    # use is involved) a list of typed content blocks (text/thinking/tool_use) —
-    # only the text blocks are meant for a human to read.
-    content = message.content
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(
-            block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text"
-        )
-    return ""
-
-
 st.title("Warehouse Ops Assistant")
 st.caption("Persistent memory across sessions, with explicit conflict resolution.")
 
@@ -212,7 +199,7 @@ for m in agent_state["messages"]:
         with st.chat_message("user"):
             st.write(m.content)
     elif isinstance(m, AIMessage):
-        text = _ai_text(m)
+        text = ai_text(m)
         if text:
             with st.chat_message("assistant"):
                 st.write(text)
