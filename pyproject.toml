@@ -19,6 +19,7 @@ dependencies = [
 dev = [
     "pytest",
     "ruff",
+    "streamlit",  # tests/test_ui_app.py drives src/ui/app.py headlessly via streamlit.testing
 ]
 ui = [
     "streamlit",

@@ -69,6 +69,26 @@ def _start_session() -> None:
     st.session_state.last_summary = None
 
 
+def _end_session(session_id, messages, entities_touched) -> str:
+    """Close the given session, writing an episodic summary only if there's
+    actual conversation content — matches src.agent.run_cli's guard, avoiding
+    a wasted Claude/Voyage call (and a content-free episodic-memory entry)
+    for a session nobody used. Always closes the session row, though: a
+    session that's abandoned (e.g. via "Start new session") without this
+    would stay open forever and its conversation would never be summarized."""
+    if messages:
+        summary = write_episode(session_id, messages, list(entities_touched))
+    else:
+        summary = "(session ended with no messages exchanged)"
+    db = get_session()
+    try:
+        repository.close_session(db, session_id, summary)
+        db.commit()
+    finally:
+        db.close()
+    return summary
+
+
 if "session_id" not in st.session_state:
     _start_session()
 
@@ -152,23 +172,20 @@ with st.sidebar:
     _render_conflict_queue()
 
     st.divider()
-    if not st.session_state.ended and st.button("End session"):
+    if not st.session_state.ended and st.button("End session", key="end_session_btn"):
         with st.spinner("Summarizing session..."):
-            summary = write_episode(
-                st.session_state.session_id,
-                agent_state["messages"],
-                list(st.session_state.entities_touched),
+            summary = _end_session(
+                st.session_state.session_id, agent_state["messages"], st.session_state.entities_touched
             )
-        db = get_session()
-        try:
-            repository.close_session(db, st.session_state.session_id, summary)
-            db.commit()
-        finally:
-            db.close()
         st.session_state.ended = True
         st.session_state.last_summary = summary
         st.rerun()
-    if st.button("Start new session"):
+    if st.button("Start new session", key="start_new_session_btn"):
+        if not st.session_state.ended:
+            with st.spinner("Saving current session..."):
+                _end_session(
+                    st.session_state.session_id, agent_state["messages"], st.session_state.entities_touched
+                )
         _start_session()
         st.rerun()
 
