@@ -28,11 +28,11 @@ Before any new fact is written, it is checked against existing structured memory
   - [x] LangGraph state machine: perceive → retrieve → reason/act → respond → write
   - [x] Tool calls: DB lookups, incident search, human escalation
   - [x] Memory-extraction node (LLM extracts candidate new facts each turn)
-- [ ] **Phase 3 — Conflict Resolution (Week 3, the differentiating part)**
-  - [ ] Conflict check against existing structured memory before write
-  - [ ] Resolution policy: auto-resolve low-stakes by recency, flag high-stakes for confirmation
-  - [ ] Provenance logging on every memory write/overwrite (session, source)
-  - [ ] Test suite of deliberately contradictory input sequences across sessions
+- [x] **Phase 3 — Conflict Resolution (Week 3, the differentiating part)**
+  - [x] Conflict check against existing structured memory before write
+  - [x] Resolution policy: auto-resolve low-stakes by recency, flag high-stakes for confirmation
+  - [x] Provenance logging on every memory write/overwrite (session, source)
+  - [x] Test suite of deliberately contradictory input sequences across sessions
 - [ ] **Phase 4 — Evaluation & Polish (Week 4)**
   - [ ] Multi-session recall test scenarios (session 1 fact recalled correctly in session 5)
   - [ ] Metrics: memory precision (retrieval correctness), conflict-resolution accuracy vs. labeled contradiction set, latency
@@ -83,4 +83,10 @@ cp .env.example .env   # fill in ANTHROPIC_API_KEY and VOYAGE_API_KEY
 
 ## Status
 
-Phase 1 (memory schema) and Phase 2 (agent core) done. Phase 3 (conflict resolution) is next.
+Phase 1 (memory schema), Phase 2 (agent core), and Phase 3 (conflict resolution) done. Phase 4 (evaluation & polish) is next.
+
+Conflict policy (`src/conflict/policy.py`): safety-relevant attributes (e.g. equipment/zone `status`) and low-confidence observations never auto-resolve — they're staged as `PENDING_CONFIRMATION` and logged as an open `Escalation`. Everything else auto-resolves by recency (`observed_at`, not insertion order — a backdated correction can't clobber a fact observed more recently). Ties fall back to a human. Review the queue with:
+
+```
+.venv/bin/python -m src.conflict.review_cli
+```

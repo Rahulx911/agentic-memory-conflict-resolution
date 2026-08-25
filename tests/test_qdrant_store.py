@@ -14,6 +14,8 @@ import pytest
 from src.memory.qdrant_store import (
     EMBEDDING_DIM,
     EpisodicSummary,
+    _client,
+    collection_name,
     init_collection,
     search,
     upsert_summary,
@@ -22,6 +24,12 @@ from src.memory.qdrant_store import (
 
 @pytest.fixture(scope="module", autouse=True)
 def _init():
+    # Points from prior test runs never get cleaned up otherwise, and once
+    # enough accumulate they crowd real assertions out of a limited search.
+    client = _client()
+    name = collection_name()
+    if client.collection_exists(name):
+        client.delete_collection(name)
     init_collection()
 
 

@@ -2,10 +2,9 @@
 
 `write_fact` is the one function that matters most: it decides, at write
 time, whether a new observation is a plain insert, a no-op (unchanged value),
-or a conflict. Conflicts are *staged*, not resolved — the new row is written
-with is_current=False and resolution=PENDING_CONFIRMATION, and the prior
-fact stays authoritative. Phase 3 adds the policy node that walks pending
-rows and either auto-resolves them by recency or leaves them for a human.
+or a conflict. On conflict, `src.conflict.policy` decides whether it can be
+auto-resolved by recency or must be staged as PENDING_CONFIRMATION and
+escalated to a human — see that module for the policy itself.
 """
 
 import uuid
@@ -14,6 +13,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from src.conflict import policy
 from src.memory.models import Entity, Escalation, Fact, Resolution
 from src.memory.models import Session as SessionModel
 
@@ -94,23 +94,70 @@ def write_fact(
         # Same belief reported again — no new row, just a no-op.
         return current
 
-    # Conflicting observation: stage it, don't overwrite. Phase 3's resolver
-    # decides whether this auto-wins by recency or needs a human.
+    # Conflicting observation: ask the policy whether it auto-resolves by
+    # recency or needs a human. Either way the prior fact is never deleted,
+    # only its is_current flag flips — full history stays queryable.
+    decision = policy.decide(
+        entity_type=entity_type,
+        attribute=attribute,
+        candidate_confidence=confidence,
+        candidate_observed_at=observed_at,
+        current_observed_at=current.observed_at,
+    )
+
     fact = Fact(
         entity_id=entity.id,
         attribute=attribute,
         value=value,
         confidence=confidence,
         observed_at=observed_at,
-        is_current=False,
+        is_current=decision.new_is_current,
         source_session_id=session_id,
         supersedes_fact_id=current.id,
-        resolution=Resolution.PENDING_CONFIRMATION,
-        resolution_reason="conflicts with current fact; awaiting Phase 3 conflict-resolution policy",
+        resolution=Resolution.AUTO_RECENCY if decision.auto_resolved else Resolution.PENDING_CONFIRMATION,
+        resolution_reason=decision.reason,
     )
     db.add(fact)
     db.flush()
+
+    if decision.new_is_current:
+        current.is_current = False
+
+    if not decision.auto_resolved:
+        log_escalation(
+            db,
+            reason=f"conflict on {entity_type}:{entity_name}.{attribute} — {decision.reason}",
+            session_id=session_id,
+            entity_id=entity.id,
+        )
+
     return fact
+
+
+def confirm_conflict(db: DBSession, fact_id: uuid.UUID, *, accept: bool, reason: str | None = None) -> Fact:
+    """Human resolution of a PENDING_CONFIRMATION fact. accept=True promotes the
+    candidate to current (superseding the prior fact); accept=False keeps the
+    prior fact current and just closes out the candidate as rejected."""
+    candidate = db.get(Fact, fact_id)
+    if candidate is None or candidate.resolution != Resolution.PENDING_CONFIRMATION:
+        raise ValueError(f"fact {fact_id} is not a pending conflict")
+
+    candidate.resolution = Resolution.USER_CONFIRMED
+    candidate.resolution_reason = reason or (
+        "human operator confirmed this observation"
+        if accept
+        else "human operator rejected this observation; prior fact retained"
+    )
+
+    if accept:
+        candidate.is_current = True
+        if candidate.supersedes_fact_id:
+            prior = db.get(Fact, candidate.supersedes_fact_id)
+            if prior is not None:
+                prior.is_current = False
+
+    db.flush()
+    return candidate
 
 
 def list_pending_conflicts(db: DBSession) -> list[Fact]:
@@ -146,3 +193,13 @@ def log_escalation(
     db.add(escalation)
     db.flush()
     return escalation
+
+
+def list_open_escalations(db: DBSession) -> list[Escalation]:
+    return list(db.execute(select(Escalation).where(Escalation.status == "open")).scalars())
+
+
+def resolve_escalation(db: DBSession, escalation_id: uuid.UUID) -> None:
+    escalation = db.get(Escalation, escalation_id)
+    if escalation is not None:
+        escalation.status = "resolved"
